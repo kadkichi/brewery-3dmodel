@@ -86,6 +86,21 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #walkhud{position:absolute;inset:0;pointer-events:none;z-index:4}
 #walkhud .wk-bar{pointer-events:auto;position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;box-shadow:0 2px 10px rgba(0,0,0,.12);max-width:calc(100vw - 360px);flex-wrap:wrap}
 #walkhud .wk-tip{font-size:12px;color:var(--ink-2)}
+#print{display:none}
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  body{overflow:visible;background:#fff}
+  #app{display:none!important}
+  #print{display:block;font-family:var(--font);color:#222}
+  #print h2{font-size:15pt;margin:0 0 4mm}
+  #print .meta{font-size:9pt;color:#666;margin-bottom:3mm}
+  #print img{display:block;width:100%;max-height:150mm;object-fit:contain;border:1px solid #ccc}
+  #print table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:5mm;page-break-inside:auto}
+  #print th,#print td{border:1px solid #999;padding:2mm 3mm;vertical-align:top;text-align:left}
+  #print td.n{width:10mm;text-align:center;font-weight:700;color:#C8321E}
+  #print td.t{white-space:pre-wrap}
+  #print td.loc{width:48mm;font-family:var(--mono);font-size:8.5pt;color:#555}
+}
 
 /* staff shell */
 [data-mode=staff] header,[data-mode=staff] #note,[data-mode=staff] #side,[data-mode=staff] #side-open,[data-mode=staff] #walkhud{display:none!important}
@@ -206,6 +221,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
         <input type="range" id="clip-h" min="0.3" max="3.6" step="0.05" value="1.2">
         <hr>
         <div class="row"><button type="button" id="btn-measure">寸法を測る</button><button type="button" id="meas-clear">測定を消す</button></div>
+        <div class="row"><button type="button" id="btn-print">この画面を印刷</button></div>
+        <div class="hint">今の視点の画像と、コメントのピン一覧を A4 横で印刷します（PDF保存も可）。</div>
         <div class="hint">2点をクリックすると距離が出ます。</div>
         <ol id="meas-list"></ol>
         <hr>
@@ -258,6 +275,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
       </div>
     </div>
     <div id="loading">3Dモデルを読み込んでいます…</div>
+    <div id="print"></div>
   </div>
 </div>
 <script type="importmap">
@@ -676,6 +694,17 @@ canvas.addEventListener('dblclick', e => {
   if (hit) controls.target.copy(hit.point);
 });
 const flyClock = new THREE.Clock();
+// print: grab the frame right after a render (the drawing buffer is not preserved otherwise), then the pin list
+$('btn-print').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  const shot = canvas.toDataURL('image/png');
+  const esc = t => (t || '').replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+  const rows = pins.map((p, i) => `<tr><td class="n">${i + 1}</td><td class="loc">${esc(p.part)}<br>x=${p.px.toFixed(0)} y=${p.py.toFixed(0)} 高さ${p.h.toFixed(2)}m</td><td class="t">${esc(p.text)}</td></tr>`).join('');
+  const title = document.title.replace(/\s*3Dビューア$/, '');
+  $('print').innerHTML = `<h2>${esc(document.title)} ${$('app').querySelector('h1 small')?.textContent || ''}</h2><div class="meta">${new Date().toLocaleString('ja-JP')}　壁：${$('m-cut').checked ? '低く（俯瞰用）' : '実高'}${walking ? '　歩行視点' : ''}</div><img src="${shot}">` +
+    (pins.length ? `<table><tr><th>番号</th><th>部品・図面座標</th><th>コメント</th></tr>${rows}</table>` : '');
+  window.print();
+});
 renderer.setAnimationLoop(() => { walkStep(); if (!walking) { orbitFly(Math.min(flyClock.getDelta(), .1)); controls.update(); } renderer.render(scene, camera); });
 
 async function boot(){
